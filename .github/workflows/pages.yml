@@ -1,0 +1,82 @@
+name: Deploy VSTEP B1 Writing
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Writing Suite
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import urllib.request, base64, gzip
+
+          out = Path('_site')
+          out.mkdir(exist_ok=True)
+          (out / 'index.html').write_text(Path('index.html').read_text(encoding='utf-8'), encoding='utf-8')
+
+          base = 'https://raw.githubusercontent.com/thanh990522/vstep-b1-speaking-lab/main/writing-src/'
+
+          def load(prefix, count):
+              chunks = []
+              for i in range(1, count + 1):
+                  url = f'{base}{prefix}-{i:02d}.txt'
+                  with urllib.request.urlopen(url, timeout=30) as r:
+                      chunks.append(r.read().decode('utf-8').strip())
+              return gzip.decompress(base64.b64decode(''.join(chunks))).decode('utf-8')
+
+          task1 = load('task1', 2)
+          task2 = load('task2', 2)
+          practice = load('practice', 4)
+
+          (out / 'task1-theory.html').write_text(task1, encoding='utf-8')
+          (out / 'task2-theory.html').write_text(task2, encoding='utf-8')
+          (out / 'practice.html').write_text(practice, encoding='utf-8')
+          (out / '.nojekyll').write_text('', encoding='utf-8')
+
+          assert 'VSTEP Writing Task 1' in task1
+          assert 'VSTEP Writing Task 2' in task2
+          assert 'scoreWriting' in practice
+          assert 'Submit & Auto-score' in practice
+          assert 'Revised Draft' in practice
+          print('Writing Suite built successfully')
+          print('Task 1:', len(task1), 'chars')
+          print('Task 2:', len(task2), 'chars')
+          print('Practice:', len(practice), 'chars')
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
