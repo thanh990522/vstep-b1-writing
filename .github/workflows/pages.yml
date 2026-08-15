@@ -26,7 +26,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import urllib.request, base64, gzip
+          import urllib.request, base64, gzip, shutil
 
           out = Path('_site')
           out.mkdir(exist_ok=True)
@@ -46,9 +46,16 @@ jobs:
           task2 = load('task2', 2)
           practice = load('practice', 4)
 
+          # Keep the original scoring/correction engine, but replace the visible
+          # step-by-step practice UI with Vietnamese outlines + direct writing input.
+          practice = practice.replace('</head>', '<link rel="stylesheet" href="practice-simple.css"></head>', 1)
+          practice = practice.replace('</body>', '<script src="practice-simple.js"></script></body>', 1)
+
           (out / 'task1-theory.html').write_text(task1, encoding='utf-8')
           (out / 'task2-theory.html').write_text(task2, encoding='utf-8')
           (out / 'practice.html').write_text(practice, encoding='utf-8')
+          shutil.copy2('practice-simple.js', out / 'practice-simple.js')
+          shutil.copy2('practice-simple.css', out / 'practice-simple.css')
           (out / '.nojekyll').write_text('', encoding='utf-8')
 
           assert 'VSTEP Writing Task 1' in task1
@@ -56,11 +63,16 @@ jobs:
           assert 'scoreWriting' in practice
           assert 'Submit & Auto-score' in practice
           assert 'Revised Draft' in practice
+          assert 'practice-simple.js' in practice
+          assert 'practice-simple.css' in practice
           print('Writing Suite built successfully')
           print('Task 1:', len(task1), 'chars')
           print('Task 2:', len(task2), 'chars')
           print('Practice:', len(practice), 'chars')
           PY
+
+      - name: Check simplified practice JavaScript
+        run: node --check practice-simple.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
